@@ -2,13 +2,15 @@ version: "3.8"
 
 services:
   api:
-    ports:
+    ports: !reset []
+    expose:
       - "8080"
     networks:
       - evolution-net
 
   frontend:
-    ports:
+    ports: !reset []
+    expose:
       - "80"
     networks:
       - evolution-net
