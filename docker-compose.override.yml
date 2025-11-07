@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  api:
+    networks:
+      - evolution-net
+
+  redis:
+    networks:
+      evolution-net:
+        aliases:
+          - evolution-redis
+
+  evolution-postgres:
+    networks:
+      - evolution-net
+
+networks:
+  evolution-net:
+    name: evolution-net
+    driver: bridge
