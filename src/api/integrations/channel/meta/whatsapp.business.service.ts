@@ -733,18 +733,22 @@ export class BusinessStartupService extends ChannelStartupService {
             );
           }
 
-          await this.prismaRepository.contact.updateMany({
-            where: { remoteJid: contact.remoteJid },
-            data: contactRaw,
-          });
+          if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+            await this.prismaRepository.contact.updateMany({
+              where: { remoteJid: contact.remoteJid },
+              data: contactRaw,
+            });
+          }
           return;
         }
 
         this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
-        await this.prismaRepository.contact.create({
-          data: contactRaw,
-        });
+        if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+          await this.prismaRepository.contact.create({
+            data: contactRaw,
+          });
+        }
       }
       if (received.statuses) {
         for await (const item of received.statuses) {
