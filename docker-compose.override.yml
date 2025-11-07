@@ -2,18 +2,29 @@ version: "3.8"
 
 services:
   api:
-    ports: !reset []
+    container_name: evolution_api
+    image: evoapicloud/evolution-api:latest
+    restart: always
+    depends_on:
+      - redis
+      - evolution-postgres
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - evolution-net
+    env_file:
+      - .env
     expose:
       - "8080"
-    networks:
-      - evolution-net
 
   frontend:
-    ports: !reset []
-    expose:
-      - "80"
+    container_name: evolution_frontend
+    image: evoapicloud/evolution-manager:latest
+    restart: always
     networks:
       - evolution-net
+    expose:
+      - "80"
 
   redis:
     networks:
@@ -24,6 +35,9 @@ services:
   evolution-postgres:
     networks:
       - evolution-net
+
+volumes:
+  evolution_instances:
 
 networks:
   evolution-net:
