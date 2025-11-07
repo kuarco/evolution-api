@@ -693,61 +693,79 @@ export class BusinessStartupService extends ChannelStartupService {
         // Guardar contacto - FIX: validar received.contacts y usar message.from como fallback
         // Según la documentación de WhatsApp Business API, contacts puede no estar presente
         // pero message.from siempre está disponible
-        let contactWaId: string;
-        
-        if (received.contacts && received.contacts.length > 0 && received.contacts[0].wa_id) {
-          contactWaId = received.contacts[0].wa_id;
-          this.logger.log(`Usando wa_id de contacts: ${contactWaId}`);
-        } else {
-          // Fallback: usar el campo 'from' del mensaje
-          contactWaId = message.from;
-          this.logger.log(`Usando message.from como fallback: ${contactWaId}`);
-        }
-
-        const contactRemoteJid = createJid(contactWaId);
-        this.logger.log(`Guardando contacto con remoteJid: ${contactRemoteJid}`);
-
-        const contact = await this.prismaRepository.contact.findFirst({
-          where: { instanceId: this.instanceId, remoteJid: contactRemoteJid },
-        });
-
-        const contactRaw: any = {
-          remoteJid: contactRemoteJid,
-          pushName: pushName || contactWaId.split('@')[0],
-          // profilePicUrl: '',
-          instanceId: this.instanceId,
-        };
-
-        if (contactRaw.remoteJid === 'status@broadcast') {
-          return;
-        }
-
-        if (contact) {
-          this.sendDataWebhook(Events.CONTACTS_UPDATE, contactRaw);
-
-          if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-            await this.chatwootService.eventWhatsapp(
-              Events.CONTACTS_UPDATE,
-              { instanceName: this.instance.name, instanceId: this.instanceId },
-              contactRaw,
-            );
+        try {
+          this.logger.log('=== INICIO GUARDADO DE CONTACTO ===');
+          
+          let contactWaId: string;
+          
+          if (received.contacts && received.contacts.length > 0 && received.contacts[0].wa_id) {
+            contactWaId = received.contacts[0].wa_id;
+            this.logger.log(`Usando wa_id de contacts: ${contactWaId}`);
+          } else {
+            // Fallback: usar el campo 'from' del mensaje
+            contactWaId = message.from;
+            this.logger.log(`Usando message.from como fallback: ${contactWaId}`);
           }
+
+          const contactRemoteJid = createJid(contactWaId);
+          this.logger.log(`Guardando contacto con remoteJid: ${contactRemoteJid}`);
+
+          const contact = await this.prismaRepository.contact.findFirst({
+            where: { instanceId: this.instanceId, remoteJid: contactRemoteJid },
+          });
+
+          const contactRaw: any = {
+            remoteJid: contactRemoteJid,
+            pushName: pushName || contactWaId.split('@')[0],
+            // profilePicUrl: '',
+            instanceId: this.instanceId,
+          };
+
+          if (contactRaw.remoteJid === 'status@broadcast') {
+            this.logger.log('Contacto es status@broadcast, omitiendo...');
+            return;
+          }
+
+          if (contact) {
+            this.logger.log(`Contacto existente encontrado, actualizando: ${contact.remoteJid}`);
+            this.sendDataWebhook(Events.CONTACTS_UPDATE, contactRaw);
+
+            if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+              await this.chatwootService.eventWhatsapp(
+                Events.CONTACTS_UPDATE,
+                { instanceName: this.instance.name, instanceId: this.instanceId },
+                contactRaw,
+              );
+            }
+
+            if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
+              await this.prismaRepository.contact.updateMany({
+                where: { remoteJid: contact.remoteJid },
+                data: contactRaw,
+              });
+              this.logger.log('Contacto actualizado exitosamente en la base de datos');
+            } else {
+              this.logger.log('DATABASE.SAVE_DATA.CONTACTS está deshabilitado, no se guardó');
+            }
+            return;
+          }
+
+          this.logger.log('Contacto nuevo, creando...');
+          this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
           if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
-            await this.prismaRepository.contact.updateMany({
-              where: { remoteJid: contact.remoteJid },
+            await this.prismaRepository.contact.create({
               data: contactRaw,
             });
+            this.logger.log('Contacto creado exitosamente en la base de datos');
+          } else {
+            this.logger.log('DATABASE.SAVE_DATA.CONTACTS está deshabilitado, no se guardó');
           }
-          return;
-        }
-
-        this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
-
-        if (this.configService.get<Database>('DATABASE').SAVE_DATA.CONTACTS) {
-          await this.prismaRepository.contact.create({
-            data: contactRaw,
-          });
+        } catch (error) {
+          this.logger.error(`Error al guardar contacto: ${error.message || error}`);
+          if (error.stack) {
+            this.logger.error(error.stack);
+          }
         }
       }
       if (received.statuses) {
