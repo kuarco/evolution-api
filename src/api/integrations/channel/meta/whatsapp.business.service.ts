@@ -687,12 +687,15 @@ export class BusinessStartupService extends ChannelStartupService {
           });
         }
 
+        // Guardar contacto - FIX: usar wa_id correto e await
+        const contactRemoteJid = createJid(received.contacts[0].wa_id);
+
         const contact = await this.prismaRepository.contact.findFirst({
-          where: { instanceId: this.instanceId, remoteJid: key.remoteJid },
+          where: { instanceId: this.instanceId, remoteJid: contactRemoteJid },
         });
 
         const contactRaw: any = {
-          remoteJid: received.contacts[0].profile.phone,
+          remoteJid: contactRemoteJid,
           pushName,
           // profilePicUrl: '',
           instanceId: this.instanceId,
@@ -703,13 +706,6 @@ export class BusinessStartupService extends ChannelStartupService {
         }
 
         if (contact) {
-          const contactRaw: any = {
-            remoteJid: received.contacts[0].profile.phone,
-            pushName,
-            // profilePicUrl: '',
-            instanceId: this.instanceId,
-          };
-
           this.sendDataWebhook(Events.CONTACTS_UPDATE, contactRaw);
 
           if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
@@ -729,7 +725,7 @@ export class BusinessStartupService extends ChannelStartupService {
 
         this.sendDataWebhook(Events.CONTACTS_UPSERT, contactRaw);
 
-        this.prismaRepository.contact.create({
+        await this.prismaRepository.contact.create({
           data: contactRaw,
         });
       }
