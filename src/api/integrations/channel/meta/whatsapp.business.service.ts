@@ -387,7 +387,10 @@ export class BusinessStartupService extends ChannelStartupService {
       let messageRaw: any;
       let pushName: any;
 
-      if (received.contacts) pushName = received.contacts[0].profile.name;
+      // Extraer pushName con validación apropiada
+      if (received.contacts && received.contacts.length > 0 && received.contacts[0].profile?.name) {
+        pushName = received.contacts[0].profile.name;
+      }
 
       if (received.messages) {
         const message = received.messages[0]; // Añadir esta línea para definir message
@@ -687,8 +690,22 @@ export class BusinessStartupService extends ChannelStartupService {
           });
         }
 
-        // Guardar contacto - FIX: usar wa_id correto e await
-        const contactRemoteJid = createJid(received.contacts[0].wa_id);
+        // Guardar contacto - FIX: validar received.contacts y usar message.from como fallback
+        // Según la documentación de WhatsApp Business API, contacts puede no estar presente
+        // pero message.from siempre está disponible
+        let contactWaId: string;
+        
+        if (received.contacts && received.contacts.length > 0 && received.contacts[0].wa_id) {
+          contactWaId = received.contacts[0].wa_id;
+          this.logger.log(`Usando wa_id de contacts: ${contactWaId}`);
+        } else {
+          // Fallback: usar el campo 'from' del mensaje
+          contactWaId = message.from;
+          this.logger.log(`Usando message.from como fallback: ${contactWaId}`);
+        }
+
+        const contactRemoteJid = createJid(contactWaId);
+        this.logger.log(`Guardando contacto con remoteJid: ${contactRemoteJid}`);
 
         const contact = await this.prismaRepository.contact.findFirst({
           where: { instanceId: this.instanceId, remoteJid: contactRemoteJid },
@@ -696,7 +713,7 @@ export class BusinessStartupService extends ChannelStartupService {
 
         const contactRaw: any = {
           remoteJid: contactRemoteJid,
-          pushName,
+          pushName: pushName || contactWaId.split('@')[0],
           // profilePicUrl: '',
           instanceId: this.instanceId,
         };
