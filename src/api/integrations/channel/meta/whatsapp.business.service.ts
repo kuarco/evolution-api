@@ -685,11 +685,15 @@ export class BusinessStartupService extends ChannelStartupService {
         }
 
         if (!this.isMediaMessage(message) && message.type !== 'sticker') {
+          this.logger.log('Guardando mensaje en base de datos...');
           await this.prismaRepository.message.create({
             data: messageRaw,
           });
+          this.logger.log('Mensaje guardado exitosamente');
         }
 
+        this.logger.log('>>> PUNTO DE CONTROL: Antes de guardar contacto <<<');
+        
         // Guardar contacto - FIX: validar received.contacts y usar message.from como fallback
         // Según la documentación de WhatsApp Business API, contacts puede no estar presente
         // pero message.from siempre está disponible
