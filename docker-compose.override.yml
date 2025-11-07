@@ -2,6 +2,12 @@ version: "3.8"
 
 services:
   api:
+    ports: []
+    networks:
+      - evolution-net
+
+  frontend:
+    ports: []
     networks:
       - evolution-net
 
