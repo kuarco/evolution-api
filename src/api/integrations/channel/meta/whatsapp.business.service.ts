@@ -659,29 +659,53 @@ export class BusinessStartupService extends ChannelStartupService {
 
         this.logger.log(messageRaw);
 
-        sendTelemetry(`received.message.${messageRaw.messageType ?? 'unknown'}`);
+        try {
+          this.logger.log('>>> Enviando telemetría...');
+          sendTelemetry(`received.message.${messageRaw.messageType ?? 'unknown'}`);
+          this.logger.log('>>> Telemetría enviada');
+        } catch (error) {
+          this.logger.error(`Error en telemetría: ${error.message || error}`);
+        }
 
-        this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
+        try {
+          this.logger.log('>>> Enviando webhook MESSAGES_UPSERT...');
+          this.sendDataWebhook(Events.MESSAGES_UPSERT, messageRaw);
+          this.logger.log('>>> Webhook enviado');
+        } catch (error) {
+          this.logger.error(`Error en webhook: ${error.message || error}`);
+        }
 
-        await chatbotController.emit({
-          instance: { instanceName: this.instance.name, instanceId: this.instanceId },
-          remoteJid: messageRaw.key.remoteJid,
-          msg: messageRaw,
-          pushName: messageRaw.pushName,
-        });
+        try {
+          this.logger.log('>>> Emitiendo evento a chatbot controller...');
+          await chatbotController.emit({
+            instance: { instanceName: this.instance.name, instanceId: this.instanceId },
+            remoteJid: messageRaw.key.remoteJid,
+            msg: messageRaw,
+            pushName: messageRaw.pushName,
+          });
+          this.logger.log('>>> Evento emitido a chatbot');
+        } catch (error) {
+          this.logger.error(`Error en chatbot emit: ${error.message || error}`);
+        }
 
-        if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
-          const chatwootSentMessage = await this.chatwootService.eventWhatsapp(
-            Events.MESSAGES_UPSERT,
-            { instanceName: this.instance.name, instanceId: this.instanceId },
-            messageRaw,
-          );
+        try {
+          if (this.configService.get<Chatwoot>('CHATWOOT').ENABLED && this.localChatwoot?.enabled) {
+            this.logger.log('>>> Procesando Chatwoot...');
+            const chatwootSentMessage = await this.chatwootService.eventWhatsapp(
+              Events.MESSAGES_UPSERT,
+              { instanceName: this.instance.name, instanceId: this.instanceId },
+              messageRaw,
+            );
 
-          if (chatwootSentMessage?.id) {
-            messageRaw.chatwootMessageId = chatwootSentMessage.id;
-            messageRaw.chatwootInboxId = chatwootSentMessage.id;
-            messageRaw.chatwootConversationId = chatwootSentMessage.id;
+            if (chatwootSentMessage?.id) {
+              messageRaw.chatwootMessageId = chatwootSentMessage.id;
+              messageRaw.chatwootInboxId = chatwootSentMessage.id;
+              messageRaw.chatwootConversationId = chatwootSentMessage.id;
+            }
+            this.logger.log('>>> Chatwoot procesado');
           }
+        } catch (error) {
+          this.logger.error(`Error en Chatwoot: ${error.message || error}`);
         }
 
         if (!this.isMediaMessage(message) && message.type !== 'sticker') {
