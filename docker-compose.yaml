@@ -2,7 +2,8 @@
 services:
   api:
     container_name: evolution_api
-    image: .
+    image: evolution/api:local
+    build: .
     restart: always
     depends_on:
       - redis
